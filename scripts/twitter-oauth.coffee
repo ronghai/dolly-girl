@@ -50,9 +50,9 @@ class TwitterOAuth
     for kv in options
       if kv[1]? && kv[1] != ""
         if hasQ
-          st.push "#{kv[0]}=\"#{encodeURIComponent(kv[1])}\""
+          st.push "#{kv[0]}=\"#{escape(kv[1])}\""
         else
-          st.push "#{kv[0]}=#{encodeURIComponent(kv[1])}"
+          st.push "#{kv[0]}=#{escape(kv[1])}"
     st.join(joiner)
 
   oauth_params: (sources...)->
@@ -80,8 +80,8 @@ class TwitterOAuth
   signature: (sign_data = [], url='', method = 'POST', csonly = false) ->
     sign_data = @sort_options sign_data
     sign_data = @join_options sign_data, '&', false
-    sb = "#{method.toUpperCase()}&"+encodeURIComponent(url)
-    sb = sb + "&" + encodeURIComponent(sign_data)
+    sb = "#{method.toUpperCase()}&"+escape(url)
+    sb = sb + "&" + escape(sign_data)
     key = @consumer_secret_key+"&"
     unless csonly
       key += @access_token_secret
