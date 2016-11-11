@@ -148,7 +148,7 @@ class TwitterOAuth
     sign = @signature(@extend_list([],post_data, oauth_headers), TwitterOAuth.URL.POST, "POST", false)
     oauth_data = @authorization(oauth_headers, sign)
     @post TwitterOAuth.URL.BASE, TwitterOAuth.URL.POST+'?'+@join_options(post_data, '&', false), oauth_data,  null, (chunk) =>
-      #@log chunk+""
+      @log chunk+""
       msg = JSON.parse(chunk+"")
       link = "https://twitter.com/#{msg['user']['screen_name'].toLowerCase()}/status/#{msg['id_str']}"
       if link?
