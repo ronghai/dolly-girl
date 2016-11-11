@@ -72,7 +72,8 @@ class TwitterOAuth
     options
 
   log:(o) ->
-    console.log(o)
+    ""
+    #console.log(o)
 
   extend_list:(obj, sources...) ->
     for source in sources
