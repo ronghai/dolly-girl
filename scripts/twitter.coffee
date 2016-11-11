@@ -1,9 +1,9 @@
 https = require 'https' 
 QUERY_STRING = require('querystring')
-HttpClient = require('scoped-http-client')
 FS = require('fs')
 CryptoJS = require('crypto-js')
 crypto = require('crypto')
+URL = require('url')
 
 class TwitterOAuth
   @HEX : '0123456789ABCDEF'
@@ -69,13 +69,13 @@ class TwitterOAuth
 
   log:(o) ->
     console.log(o)
-    
+
   extend_list:(obj, sources...) ->
     for source in sources
       for el in source
         obj.push el
     obj
- 
+
   signature: (sign_data = [], url='', method = 'POST', csonly = false) ->
     sign_data = @sort_options sign_data
     sign_data = @join_options sign_data, '&', false
@@ -84,9 +84,6 @@ class TwitterOAuth
     key = @consumer_secret_key+"&"
     unless csonly
       key += @access_token_secret
-    @log("do signing...")
-    @log(sb)
-    @log(key)
     signature = CryptoJS.enc.Base64.stringify(CryptoJS.HmacSHA1(sb, key))
     signature
 
@@ -104,11 +101,10 @@ class TwitterOAuth
         'Authorization' : oauth_data
     options.agent = new https.Agent(options)
     req = https.request options, (res) ->
-      res.on 'data', (chunk) =>
-        @log chunk+""
+      res.on 'data', (chunk) ->
         callback? chunk
-      res.on 'error', (e) =>
-        @log e.message
+      res.on 'error', (e) ->
+        console.log e.message
     if post_data?
       req.write(post_data)
     req.end()
@@ -117,7 +113,7 @@ class TwitterOAuth
     oauth_headers.push ["oauth_signature", sign]  if sign?
     oauth_headers = @sort_options oauth_headers
     oauth_data = @join_options oauth_headers, ", ", true
-    oauth_data = "OAuth #{@oauth_data}"
+    oauth_data = "OAuth #{oauth_data}"
     @log(oauth_data)
     oauth_data
 
@@ -126,55 +122,56 @@ class TwitterOAuth
     sign = @signature(@extend_list([], oauth_headers), TwitterOAuth.URL.REQUEST, "POST", true)
     oauth_data = @authorization(oauth_headers, sign)
     @post TwitterOAuth.URL.BASE, TwitterOAuth.URL.REQUEST_PATH, oauth_data, null, (chunk) =>
-      @log chunk+""
       dt = QUERY_STRING.parse(chunk+"")
-      @access_token_secret = dt["oauth_token_secret"]
-      @access_token = dt["oauth_token"]
-      callback?@, "#{TwitterOAuth.URL.AUTHORIZE}?oauth_token=#{@access_token}"
+      #oauth_callback_confirmed=true
+      if dt["oauth_token_secret"]?
+        @access_token_secret = dt["oauth_token_secret"]
+        @access_token = dt["oauth_token"]
+        callback?@, "#{TwitterOAuth.URL.AUTHORIZE}?oauth_token=#{@access_token}"
 
-  access_token: (@access_token, @access_token_secret, @oauth_verifier, callback) ->
+  request_access_token: (@access_token, @access_token_secret, @oauth_verifier, callback) ->
     oauth_headers = @oauth_params()
     post_data = [["oauth_verifier", @oauth_verifier]]
-    sign = @signature(@extend_list(post_data, oauth_headers), TwitterOAuth.URL.ACCESS, "POST", false)
+    sign = @signature(@extend_list([], post_data, oauth_headers), TwitterOAuth.URL.ACCESS, "POST", false)
     oauth_data = @authorization(oauth_headers, sign)
-
     @post TwitterOAuth.URL.BASE, TwitterOAuth.URL.ACCESS, oauth_data, @join_options(post_data, '&', false), (chunk) =>
-      @log "access_token"
-      @log chunk+""
       dt = QUERY_STRING.parse(chunk+"")
-      @access_token_secret = dt["oauth_token_secret"]
-      @access_token = dt["oauth_token"]
-      callback?@
+      if dt["oauth_token_secret"]?
+        @access_token_secret = dt["oauth_token_secret"]
+        @access_token = dt["oauth_token"]
+        callback?@
 
-  tweet: (t) ->
+  tweet: (t, callback) ->
     oauth_headers = @oauth_params()
     post_data = [["status", t]]
-    sign = @signature(@extend_list(post_data, oauth_headers), TwitterOAuth.URL.POST, "POST", false)
+    sign = @signature(@extend_list([],post_data, oauth_headers), TwitterOAuth.URL.POST, "POST", false)
     oauth_data = @authorization(oauth_headers, sign)
     @post TwitterOAuth.URL.BASE, TwitterOAuth.URL.POST+'?'+@join_options(post_data, '&', false), oauth_data,  null, (chunk) =>
-      @log "access_token"
-      @log chunk+""
-      callback?@
+      #@log chunk+""
+      msg = JSON.parse(chunk+"")
+      link = "https://twitter.com/#{msg['user']['screen_name'].toLowerCase()}/status/#{msg['id_str']}"
+      if link?
+        callback?@, link
 
 TWITTER_CONSUMER_KEY = process.env.TWITTER_CONSUMER_KEY
-TWITTER_CONSUMER_SECERT_KEY = process.env.TWITTER_CONSUMER_SECERT_KEY
+TWITTER_CONSUMER_SECRET_KEY = process.env.TWITTER_CONSUMER_SECRET_KEY
 TWITTER_CALLBACK_URL = process.env.TWITTER_CALLBACK_URL
 
-module.exports = (robot) -> 
-
+module.exports = (robot) ->
   robot.respond /twitter (.*)/i, (res) ->
     tweet = res.match[1]
     user = res.message.user
     access_token = robot.brain.get "#{user.id}:twitter:access_token"
     access_token_secret = robot.brain.get "#{user.id}:twitter:access_token_secret" 
     if access_token?
-      oauth = new TwitterOAuth({consumer_key:TWITTER_CONSUMER_KEY,consumer_secret_key:TWITTER_CONSUMER_SECERT_KEY, 
-                  access_token:access_token, access_token_secret:access_token_secret})
+      oauth = new TwitterOAuth({consumer_key:TWITTER_CONSUMER_KEY,consumer_secret_key:TWITTER_CONSUMER_SECRET_KEY, access_token:access_token, access_token_secret:access_token_secret})
       res.reply "I'm posting that tweet: #{tweet}"
-       #tweet with oauth
+      room = robot.adapter.client.rtm.dataStore.getDMByName user.name
+      oauth.tweet tweet, (oa, _url) ->
+        res.reply _url
     else
       robot.brain.set("#{user.id}:twitter:draft", tweet)
-      oauth = new TwitterOAuth({consumer_key:TWITTER_CONSUMER_KEY, consumer_secret_key:TWITTER_CONSUMER_SECERT_KEY, callback: TWITTER_CALLBACK_URL})
+      oauth = new TwitterOAuth({consumer_key:TWITTER_CONSUMER_KEY, consumer_secret_key:TWITTER_CONSUMER_SECRET_KEY, callback: TWITTER_CALLBACK_URL})
       oauth.request_token (oa, verify_url) =>
         robot.brain.set("#{user.id}:twitter:access_token_t", oa.access_token)
         robot.brain.set("#{user.id}:twitter:access_token_secret_t", oa.access_token_secret)
@@ -190,7 +187,7 @@ module.exports = (robot) ->
     res.reply "Twitter's oAuth has been removed"
   
   robot.router.all '/twitter/oauth(/)?', (req, res) ->
-    query = QUERY_STRING.parse(url.parse(req.url).query)
+    query = QUERY_STRING.parse(URL.parse(req.url).query)
     access_token = query["oauth_token"]
     oauth_verifier = query["oauth_verifier"]
     user = robot.brain.get "twitter:#{access_token}"
@@ -198,8 +195,8 @@ module.exports = (robot) ->
       res.send 'ERROR'
       return
     access_token_secret = robot.brain.get("#{user.id}:twitter:access_token_secret_t")
-    oauth = new TwitterOAuth({consumer_key:TWITTER_CONSUMER_KEY, consumer_secret_key:TWITTER_CONSUMER_SECERT_KEY, callback:TWITTER_CALLBACK_URL})
-    oauth.access_token access_token, access_token_secret, oauth, (oa)=>
+    oauth = new TwitterOAuth({consumer_key:TWITTER_CONSUMER_KEY, consumer_secret_key:TWITTER_CONSUMER_SECRET_KEY, callback:TWITTER_CALLBACK_URL})
+    oauth.request_access_token access_token, access_token_secret, oauth_verifier, (oa)=>
       robot.brain.set("#{user.id}:twitter:access_token", oa.access_token)
       robot.brain.set("#{user.id}:twitter:access_token_secret", oa.access_token_secret)
       robot.brain.remove "twitter:#{access_token}"
@@ -209,5 +206,7 @@ module.exports = (robot) ->
       if draft?
         room = robot.adapter.client.rtm.dataStore.getDMByName user.name
         robot.reply {room:room.id, user: user}, "I'm posting that tweet: #{draft}"
+        oa.tweet draft, (_oa, _url)->
+           robot.reply {room:room.id, user: user}, _url
     res.send 'OK'
-   
+    
