@@ -41,8 +41,8 @@ class TwitterOAuth
   
   sort_options: (options =[]) ->
     options.sort (a, b)->
-      a[0] < b[0] ? -1 : (a[0] > b[0] ? 1 : 0)
-    options.reverse();
+      if a[0] < b[0] then -1 else if a[0] > b[0] then 1 else 0
+    #options.reverse();
     options
 
   precentEncode: (str) ->
