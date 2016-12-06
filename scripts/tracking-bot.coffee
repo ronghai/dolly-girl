@@ -6,30 +6,54 @@ class Carrier
     优寄:
       name: "优寄"
       url: "http://ushipshop.com/"
-      tracking_url: "http://ushipshop.com/"
-      tracking_method: "POST"
+      trackingURI: "http://www.ushipshop.com/search/search/index"
+      postData: "number=%@"
+      method: "POST"
+      order: "asc"
     果果:
       name: "果果快递"
       url: "http://goguoguo.com/"
-      tracking_url: "http://goguoguo.com/"
-      tracking_method: "POST"
+      trackingURI: "http://www.goguoguo.com/track.html"
+      postData: "data=%@"
+      method: "POST"
+      order: "desc"
     顺达:
       name: "顺达快递"
       url: "http://www.sd-ex.com/"
-      tracking_url: "http://www.sd-ex.com/"
-      tracking_method: "POST"
+      trackingURI: "http://www.sd-ex.com/cgi-bin/GInfo.dll?EmmisTrack"
+      postData: "cno=%@&ntype=1"
+      method: "POST"
     豪杰:
       name: "豪杰速递"
       url: "http://www.hjusaexpress.com/"
-      tracking_url: "http://www.hjusaexpress.com/"
-      tracking_method: "POST"
+      trackingURI: "http://www.hjusaexpress.com/result.aspx?txtNo=%@"
+      postData: "txtNo=%@"
+      method: "POST"
     _:
       name: "快递100"
   
-  @track = (tracking) ->
+  @track = (tracking, callback) ->
     t_c = tracking.split("|")
     carrier = Carrier.carriers[t_c[1]] ?= Carrier.carriers["_"]
-    ;
+    postData = carrier.postData
+    options = 
+      hostname : host
+      host : host
+      method : carrier.method
+      headers : 
+        'Accept' : '*/*'
+        'Content-Length' : if postData? then Buffer.byteLength(postData) else 0
+        'Content-Type' : 'application/x-www-form-urlencoded'
+    options.agent = new https.Agent(options)
+    req = https.request options, (res) ->
+      res.on 'data', (chunk) ->
+        console.log chunk
+        callback? chunk
+      res.on 'error', (e) ->
+        console.log e.message
+    if postData?
+      req.write(postData)
+    req.end()
     
     
 module.exports = (robot) ->
