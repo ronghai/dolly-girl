@@ -25,6 +25,11 @@ class Carrier
       tracking_method: "POST"
     _:
       name: "快递100"
+  
+  @track = (tracking) ->
+    t_c = tracking.split("|")
+    carrier = Carrier.carriers[t_c[1]] ?= Carrier.carriers["_"]
+    ;
     
     
 module.exports = (robot) ->
