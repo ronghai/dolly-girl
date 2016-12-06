@@ -30,7 +30,7 @@ class Carrier
 module.exports = (robot) ->
   prefix = "tracking"
   robot.hear /track (.*)|(.*)/i, (res) ->
-    tracking = res.match[1] + "|" + res.match[2]
+    tracking = res.match[1].trim() + "|" + res.match[2].trim()
     key = "#{prefix}:tracking"
     data = redis.brain.get(key) || {}
     data[tracking] = "1"
@@ -38,7 +38,7 @@ module.exports = (robot) ->
     #var myHash = new Hash('one',[1,10,5],'two', [2], 'three',[3,30,300]);
     #do some tracking
   robot.hear /MD (.*)|(.*)/i, (res) -> #mark delivered
-    tracking = res.match[1] + "|" + res.match[2]
+    tracking = res.match[1].trim() + "|" + res.match[2].trim()
     key = "#{prefix}:tracking"
     data = redis.brain.get(key) || {}
     #data.remove
@@ -58,8 +58,8 @@ module.exports = (robot) ->
       
       #
   robot.hear /note (.*)|(.*) (.*)/i, (res) ->
-    tracking = res.match[1] + "|" + res.match[2]
-    note = res.match[3]
+    tracking = res.match[1].trim() + "|" + res.match[2].trim()
+    note = res.match[3].trim()
     key = "#{prefix}:note:#{tracking}"
     redis.brain.set(key, note)
     robot.reply("set note of '#{tracking}' to '#{note}'")
