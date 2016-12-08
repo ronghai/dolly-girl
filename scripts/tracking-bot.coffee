@@ -1,5 +1,6 @@
 https = require 'https' 
 http = require 'http' 
+hashes = require('hashes')
 
 class Carrier
   @carriers =
@@ -31,6 +32,7 @@ class Carrier
       method: "POST"
     _:
       name: "快递100"
+      url: "http://www.kuaidi100.com/"
   
   @track = (tracking, callback) ->
     t_c = tracking.split("|")
@@ -58,45 +60,50 @@ class Carrier
     
 module.exports = (robot) ->
   prefix = "tracking"
-  robot.hear /track (.*)|(.*)/i, (res) ->
+  robot.hear /track (.*)[|](.*)/i, (res) ->
+    robot.logger.info res.match
     tracking = res.match[1].trim() + "|" + res.match[2].trim()
     key = "#{prefix}:tracking"
-    data = redis.brain.get(key) || {}
-    data[tracking] = "1"
-    redis.brain.set(key, data)
+    data = robot.brain.get(key) || {}
+    data[tracking] = ""
+    robot.brain.set(key, data)
+    res.reply("I'm tracking #{tracking}...\n")
     #var myHash = new Hash('one',[1,10,5],'two', [2], 'three',[3,30,300]);
     #do some tracking
-  robot.hear /MD (.*)|(.*)/i, (res) -> #mark delivered
+
+  robot.hear /MD (.*)[|](.*)/i, (res) -> #mark delivered
     tracking = res.match[1].trim() + "|" + res.match[2].trim()
     key = "#{prefix}:tracking"
-    data = redis.brain.get(key) || {}
+    data = robot.brain.get(key) || {}
     #data.remove
-    redis.brain.set(key, data)
+    #do something to remove 
+    robot.brain.set(key, data)
     key = "#{prefix}:delivered"
-    data = redis.brain.get(key) || {}
-    data[tracking] = "2"
-    redis.brain.set(key, data)
+    data = robot.brain.get(key) || {}
+    data[tracking] = ""
+    robot.brain.set(key, data)
     #
+
   robot.hear /refresh status(.*)/i, (res) ->
     key = "#{prefix}:tracking"
-    data = redis.brain.get(key) || {}
+    data = robot.brain.get(key) || {}
     for tracking, _ of data
       #
       key = "#{prefix}:status:#{tracking}"
-      status = redis.brain.get(key) || {}
-      
+      status = robot.brain.get(key) || {}
+      res.reply("#{tracking} is #{status}")
       #
-  robot.hear /note (.*)|(.*) (.*)/i, (res) ->
+  robot.hear /note (.*)[|](.*) (.*)/i, (res) ->
     tracking = res.match[1].trim() + "|" + res.match[2].trim()
     note = res.match[3].trim()
     key = "#{prefix}:note:#{tracking}"
-    redis.brain.set(key, note)
-    robot.reply("set note of '#{tracking}' to '#{note}'")
+    robot.brain.set(key, note)
+    res.reply("set note of '#{tracking}' to '#{note}'\n")
     
   robot.hear /list carriers(.*)/i, (res) ->
     robot.logger.info "list carriers"
     carriers = Carrier.carriers
     cs = for name, carrier of carriers
         "#{name}, #{carrier.name}, #{carrier.url}"
-    robot.reply(cs.join("\n"))
+    res.reply(cs.join("\n"))
 
