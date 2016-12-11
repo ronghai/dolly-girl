@@ -2,6 +2,28 @@ https = require 'https'
 http = require 'http' 
 hashes = require('hashes')
 
+class SimpleSet
+  @BLANK = ""
+  constructor: (data) ->
+    if data
+      @data = data
+    else
+      @data = {}
+  add: (obj) ->
+    @data[obj] = HashSet.BLANK
+  remove: (obj) ->
+    delete @data[obj]
+  contains: (obj) ->
+    #TODO
+    return true
+  #square = (x) -> x * x
+  @load = (d) ->
+    if(d && d["data"])
+      new HashSet(d["data"])
+    else
+      new HashSet
+    
+
 class Carrier
   @carriers =
     优寄:
@@ -61,27 +83,27 @@ class Carrier
 module.exports = (robot) ->
   prefix = "tracking"
   robot.hear /track (.*)[|](.*)/i, (res) ->
-    robot.logger.info res.match
     tracking = res.match[1].trim() + "|" + res.match[2].trim()
     key = "#{prefix}:tracking"
-    data = robot.brain.get(key) || {}
-    data[tracking] = ""
+    data = SimpleSet.load(robot.brain.get(key))# || new HashSet
+    robot.logger.info  data
+    data.add(tracking)
     robot.brain.set(key, data)
     res.reply("I'm tracking #{tracking}...\n")
-    #var myHash = new Hash('one',[1,10,5],'two', [2], 'three',[3,30,300]);
-    #do some tracking
+
 
   robot.hear /MD (.*)[|](.*)/i, (res) -> #mark delivered
     tracking = res.match[1].trim() + "|" + res.match[2].trim()
     key = "#{prefix}:tracking"
-    data = robot.brain.get(key) || {}
-    #data.remove
-    #do something to remove 
+    data = SimpleSet.load(robot.brain.get(key))
+    data.remove(tracking)
+    robot.logger.info data
     robot.brain.set(key, data)
-    key = "#{prefix}:delivered"
-    data = robot.brain.get(key) || {}
-    data[tracking] = ""
+    key = "#{prefix}:delivered\n"
+    data = SimpleSet.load(robot.brain.get(key))
+    data.add(tracking)
     robot.brain.set(key, data)
+    res.reply("#{tracking} has been delivered.")
     #
 
   robot.hear /refresh status(.*)/i, (res) ->
